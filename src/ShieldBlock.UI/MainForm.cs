@@ -57,9 +57,9 @@ namespace ShieldBlock.UI
 
         // Background Timer
         private System.Windows.Forms.Timer _metricsTimer = null!;
-        private long _adsBlockedCount = 4281;
-        private long _trackersBlockedCount = 1894;
-        private long _dnsQueriesCount = 15420;
+        private long _adsBlockedCount = 0;
+        private long _trackersBlockedCount = 0;
+        private long _dnsQueriesCount = 0;
 
         public MainForm()
         {
@@ -321,11 +321,7 @@ namespace ShieldBlock.UI
                 IntegralHeight = false
             };
 
-            _liveFeedListBox.Items.Add("[10:14:02] [BLOCKED] doubleclick.net (AdBlock Base | ||doubleclick.net^)");
-            _liveFeedListBox.Items.Add("[10:14:03] [BLOCKED] google-analytics.com (Privacy & Telemetry | ||google-analytics.com^)");
-            _liveFeedListBox.Items.Add("[10:14:05] [ALLOWED] github.com (Encrypted HTTPS / Passed)");
-            _liveFeedListBox.Items.Add("[10:14:07] [BLOCKED] scorecardresearch.com (Tracking Protection | ||scorecardresearch.com^)");
-            _liveFeedListBox.Items.Add("[10:14:10] [ALLOWED] youtube.com (YouTube Optimizer: ad scripts pruned)");
+            _liveFeedListBox.Items.Add($"[{DateTime.Now:HH:mm:ss}] [SYSTEM] ShieldBlock initialized. Waiting for network traffic...");
 
             pnl.Controls.AddRange(new Control[] {
                 _shieldPanel, statsContainer, feedHeader, _liveFeedListBox
@@ -885,11 +881,38 @@ namespace ShieldBlock.UI
             _toggleProtectionBtn.Text = enable ? "TURN OFF" : "TURN ON";
             _toggleProtectionBtn.BackColor = enable ? ThemeColors.SurfaceHover : ThemeColors.Emerald;
 
-            _shieldPanel.Invalidate();
+            if (enable)
+            {
+                EnsureBackgroundServiceRunning();
+            }
 
             try
             {
                 await _ipcClient.SendAsync(IpcActions.SetProtection, enable.ToString());
+            }
+            catch { }
+        }
+
+        private void EnsureBackgroundServiceRunning()
+        {
+            try
+            {
+                var existing = Process.GetProcessesByName("ShieldBlockService");
+                if (existing.Length == 0)
+                {
+                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string servicePath = Path.Combine(appDir, "ShieldBlockService.exe");
+                    if (File.Exists(servicePath))
+                    {
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = servicePath,
+                            UseShellExecute = true,
+                            WindowStyle = ProcessWindowStyle.Hidden
+                        };
+                        Process.Start(psi);
+                    }
+                }
             }
             catch { }
         }
