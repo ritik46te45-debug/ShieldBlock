@@ -237,11 +237,34 @@ namespace ShieldBlock.Setup
 
                 await Task.Delay(300);
 
-                // 2. Copy binaries to install directory
+                // 2. Kill any old running instances and copy binaries to install directory
                 _progressBar.Value = 45;
                 string targetDir = GetInstallDirectory();
                 _statusLabel.Text = $"Installing application binaries to {targetDir}...";
                 Directory.CreateDirectory(targetDir);
+
+                Program.KillProcessesByName("ShieldBlock");
+                Program.KillProcessesByName("ShieldBlockService");
+                await Task.Delay(200);
+
+                // Extract embedded ShieldBlock.exe if available
+                try
+                {
+                    var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                    string[] candidates = { "ShieldBlock.Setup.ShieldBlock.exe", "ShieldBlock.exe" };
+                    foreach (var res in candidates)
+                    {
+                        using var stream = asm.GetManifestResourceStream(res);
+                        if (stream != null)
+                        {
+                            string embeddedDst = Path.Combine(targetDir, "ShieldBlock.exe");
+                            using var fs = new FileStream(embeddedDst, FileMode.Create, FileAccess.Write);
+                            stream.CopyTo(fs);
+                            break;
+                        }
+                    }
+                }
+                catch { }
 
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string[] filesToCopy = { "ShieldBlock.exe", "ShieldBlockService.exe", "ShieldBlockRecovery.exe" };
@@ -252,7 +275,7 @@ namespace ShieldBlock.Setup
                     string dst = Path.Combine(targetDir, file);
                     if (File.Exists(src))
                     {
-                        File.Copy(src, dst, true);
+                        try { File.Copy(src, dst, true); } catch { }
                     }
                 }
 

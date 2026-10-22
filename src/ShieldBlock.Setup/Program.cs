@@ -92,7 +92,7 @@ namespace ShieldBlock.Setup
             catch { }
         }
 
-        private static void KillProcessesByName(string processName)
+        internal static void KillProcessesByName(string processName)
         {
             try
             {

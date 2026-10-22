@@ -43,10 +43,10 @@ namespace ShieldBlock.Core.Common
         public const string WfpRulePrefix = "ShieldBlock-";
 
         // DNS Engine
-        public const string LocalDnsIp = "127.0.0.53";
+        public const string LocalDnsIp = "127.0.0.1";
         public const int LocalDnsPort = 53;
-        public const string UpstreamDohCloudflare = "https://cloudflare-dns.com/dns-query";
-        public const string UpstreamDohQuad9 = "https://dns.quad9.net/dns-query";
+        public const string UpstreamDohCloudflare = "https://1.1.1.1/dns-query";
+        public const string UpstreamDohQuad9 = "https://9.9.9.9/dns-query";
         public const string UpstreamDohAdGuard = "https://dns.adguard-dns.com/dns-query";
 
         // HTTPS Engine

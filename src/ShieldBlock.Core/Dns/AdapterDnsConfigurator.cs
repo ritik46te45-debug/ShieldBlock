@@ -32,7 +32,7 @@ namespace ShieldBlock.Core.Dns
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
-        public async Task<bool> ConfigureDnsProxyAsync(string proxyIp = "127.0.0.53")
+        public async Task<bool> ConfigureDnsProxyAsync(string proxyIp = "127.0.0.1")
         {
             if (!IsAdministrator())
             {
@@ -67,9 +67,25 @@ namespace ShieldBlock.Core.Dns
                 return false;
             }
 
-            // 3. Mandatory Safety Step: Verify connectivity
+            // Give Windows TCP/IP stack a brief moment to apply DNS and flush cache
+            await Task.Delay(300);
+            try
+            {
+                var psi = new ProcessStartInfo("ipconfig.exe", "/flushdns") { CreateNoWindow = true, UseShellExecute = false };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(2000);
+            }
+            catch { }
+
+            // 3. Safety Step: Verify connectivity with retry
             Console.WriteLine("[AdapterDnsConfigurator] Verifying network connectivity post-DNS configuration...");
-            var connectivity = await _connectivityTester.VerifyConnectivityAsync();
+            var connectivity = await _connectivityTester.VerifyConnectivityAsync(timeoutMs: 4000);
+
+            if (!connectivity.IsConnected)
+            {
+                await Task.Delay(500);
+                connectivity = await _connectivityTester.VerifyConnectivityAsync(timeoutMs: 4000);
+            }
 
             if (!connectivity.IsConnected || connectivity.IsCaptivePortalDetected)
             {
@@ -117,7 +133,21 @@ namespace ShieldBlock.Core.Dns
                 if (proc == null) return false;
 
                 proc.WaitForExit(5000);
-                return proc.ExitCode == 0;
+                if (proc.ExitCode == 0) return true;
+
+                // Fallback to interface ipv4 set dnsservers syntax
+                var fallbackPsi = new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = $"interface ipv4 set dnsservers name=\"{adapterName}\" static {dnsIp} primary validate=no",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using var proc2 = Process.Start(fallbackPsi);
+                proc2?.WaitForExit(5000);
+                return proc2?.ExitCode == 0;
             }
             catch (Exception ex)
             {

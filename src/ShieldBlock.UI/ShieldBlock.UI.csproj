@@ -9,6 +9,7 @@
     <RootNamespace>ShieldBlock.UI</RootNamespace>
     <AssemblyName>ShieldBlock</AssemblyName>
     <ApplicationIcon>icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <RollForward>LatestMajor</RollForward>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>

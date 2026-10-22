@@ -4,11 +4,14 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using ShieldBlock.Core.Common;
 using ShieldBlock.Core.Config;
+using ShieldBlock.Core.Dns;
 using ShieldBlock.Core.Ipc;
+using ShieldBlock.Core.Rules;
 using ShieldBlock.Core.Safety;
 using ShieldBlock.Core.Stats;
 
@@ -23,6 +26,9 @@ namespace ShieldBlock.UI
         private UserSettings _userSettings;
         private readonly ConnectivityTester _connectivityTester;
         private readonly IpcClient _ipcClient = new IpcClient();
+        private RuleEngine? _inProcessRuleEngine;
+        private DnsProxyServer? _inProcessDnsProxy;
+        private AdapterDnsConfigurator? _dnsConfigurator;
 
         // UI Controls
         private Panel _headerPanel = null!;
@@ -67,11 +73,17 @@ namespace ShieldBlock.UI
             _serviceSettings = _configManager.LoadServiceSettings();
             _userSettings = _configManager.LoadUserSettings();
             _connectivityTester = new ConnectivityTester();
+            _dnsConfigurator = new AdapterDnsConfigurator();
 
             InitializeFormProperties();
             InitializeComponent();
             SetupSystemTray();
             SetupMetricsTimer();
+
+            if (_serviceSettings.ProtectionEnabled)
+            {
+                _ = StartInProcessFilteringAsync();
+            }
         }
 
         private void InitializeFormProperties()
@@ -886,9 +898,15 @@ namespace ShieldBlock.UI
             _toggleProtectionBtn.Text = enable ? "PAUSE PROTECTION" : "ENABLE PROTECTION";
             _toggleProtectionBtn.BackColor = enable ? ThemeColors.SurfaceHover : ThemeColors.Emerald;
 
+            _shieldPanel.Invalidate();
+
             if (enable)
             {
-                EnsureBackgroundServiceRunning();
+                await StartInProcessFilteringAsync();
+            }
+            else
+            {
+                await StopInProcessFilteringAsync();
             }
 
             try
@@ -898,26 +916,178 @@ namespace ShieldBlock.UI
             catch { }
         }
 
-        private void EnsureBackgroundServiceRunning()
+        private async Task StartInProcessFilteringAsync()
         {
             try
             {
-                var existing = Process.GetProcessesByName("ShieldBlockService");
-                if (existing.Length == 0)
+                if (_inProcessDnsProxy == null)
                 {
-                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string servicePath = Path.Combine(appDir, "ShieldBlockService.exe");
-                    if (File.Exists(servicePath))
+                    _inProcessRuleEngine = new RuleEngine();
+
+                    // Seed/load baseline filter lists
+                    try
                     {
-                        var psi = new ProcessStartInfo
-                        {
-                            FileName = servicePath,
-                            UseShellExecute = true,
-                            WindowStyle = ProcessWindowStyle.Hidden
-                        };
-                        Process.Start(psi);
+                        var filterManager = new FilterListManager();
                     }
+                    catch { }
+
+                    string listsDir = Path.Combine(Constants.ProgramDataDir, "data", "lists");
+                    if (Directory.Exists(listsDir))
+                    {
+                        foreach (var file in Directory.GetFiles(listsDir, "*.txt"))
+                        {
+                            try
+                            {
+                                var lines = File.ReadAllLines(file);
+                                _inProcessRuleEngine.LoadRules(lines, Path.GetFileNameWithoutExtension(file));
+                            }
+                            catch { }
+                        }
+                    }
+
+                    // Always ensure core ad, tracker, and telemetric domains are strictly blocked
+                    string[] coreBlockRules = new[]
+                    {
+                        "||doubleclick.net^",
+                        "||googleads.g.doubleclick.net^",
+                        "||static.doubleclick.net^",
+                        "||pubads.g.doubleclick.net^",
+                        "||securepubads.g.doubleclick.net^",
+                        "||pagead2.googlesyndication.com^",
+                        "||adservice.google.com^",
+                        "||adservice.google.co.in^",
+                        "||google-analytics.com^",
+                        "||analytics.google.com^",
+                        "||scorecardresearch.com^",
+                        "||c.amazon-adsystem.com^",
+                        "||amazon-adsystem.com^",
+                        "||aax.amazon-adsystem.com^",
+                        "||adnxs.com^",
+                        "||quantserve.com^",
+                        "||taboola.com^",
+                        "||outbrain.com^",
+                        "||rubiconproject.com^",
+                        "||pubmatic.com^",
+                        "||openx.net^",
+                        "||casalemedia.com^",
+                        "||criteo.com^",
+                        "||zedo.com^",
+                        "||adcolony.com^",
+                        "||unityads.unity3d.com^",
+                        "||popads.net^",
+                        "||propellerads.com^",
+                        "||exoclick.com^",
+                        "||adcash.com^",
+                        "||trafficjunky.com^",
+                        "||appsflyer.com^",
+                        "||an.yandex.ru^",
+                        "||hotjar.com^",
+                        "||clarity.ms^",
+                        "||s.youtube.com^",
+                        "||youtube.com/api/stats/ads^",
+                        "||youtube.com/pagead/*^",
+                        "||video-stats.l.google.com^"
+                    };
+
+                    _inProcessRuleEngine.LoadRules(coreBlockRules, "CoreAdblock");
+
+                    _inProcessDnsProxy = new DnsProxyServer(_inProcessRuleEngine, "127.0.0.1", 53);
+                    _inProcessDnsProxy.OnQueryProcessed += (s, args) =>
+                    {
+                        try
+                        {
+                            if (IsDisposed || Disposing) return;
+                            BeginInvoke(new Action(() =>
+                            {
+                                Interlocked.Increment(ref _dnsQueriesCount);
+                                if (args.IsBlocked)
+                                {
+                                    if (args.RuleMatched.Contains("privacy", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        Interlocked.Increment(ref _trackersBlockedCount);
+                                    }
+                                    else
+                                    {
+                                        Interlocked.Increment(ref _adsBlockedCount);
+                                    }
+
+                                    string logLine = $"[{DateTime.Now:HH:mm:ss}] [BLOCKED] {args.Domain} ({args.RuleMatched})";
+                                    _liveFeedListBox.Items.Insert(0, logLine);
+                                    if (_liveFeedListBox.Items.Count > 100) _liveFeedListBox.Items.RemoveAt(100);
+                                }
+                                else
+                                {
+                                    string logLine = $"[{DateTime.Now:HH:mm:ss}] [ALLOWED] {args.Domain}";
+                                    _liveFeedListBox.Items.Insert(0, logLine);
+                                    if (_liveFeedListBox.Items.Count > 100) _liveFeedListBox.Items.RemoveAt(100);
+                                }
+
+                                _lblAdsBlockedVal.Text = _adsBlockedCount.ToString("N0");
+                                _lblTrackersVal.Text = _trackersBlockedCount.ToString("N0");
+                                _lblDnsQueriesVal.Text = _dnsQueriesCount.ToString("N0");
+                                if (args.Latency.TotalMilliseconds > 0)
+                                {
+                                    _lblAvgLatencyVal.Text = $"{args.Latency.TotalMilliseconds:F1} ms";
+                                }
+                            }));
+                        }
+                        catch { }
+                    };
                 }
+
+                _inProcessDnsProxy.Start();
+
+                // Point adapter DNS to 127.0.0.1
+                if (_dnsConfigurator != null)
+                {
+                    await _dnsConfigurator.ConfigureDnsProxyAsync("127.0.0.1");
+                }
+
+                // Flush Windows DNS Cache so changes take effect immediately
+                FlushWindowsDns();
+
+                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection ACTIVE. Filtering network on 127.0.0.1:53.");
+            }
+            catch (Exception ex)
+            {
+                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [ERROR] Protection notice: {ex.Message}");
+            }
+        }
+
+        private async Task StopInProcessFilteringAsync()
+        {
+            try
+            {
+                if (_inProcessDnsProxy != null)
+                {
+                    _inProcessDnsProxy.Dispose();
+                    _inProcessDnsProxy = null;
+                }
+
+                if (_dnsConfigurator != null)
+                {
+                    await _dnsConfigurator.RevertDnsAsync();
+                }
+
+                FlushWindowsDns();
+                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection PAUSED. Restored adapter DNS.");
+            }
+            catch { }
+        }
+
+        private static void FlushWindowsDns()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ipconfig.exe",
+                    Arguments = "/flushdns",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(3000);
             }
             catch { }
         }
@@ -984,6 +1154,12 @@ namespace ShieldBlock.UI
                 _notifyIcon.ShowBalloonTip(2000, "ShieldBlock", "Running in background to protect your connection.", ToolTipIcon.Info);
                 return;
             }
+
+            try
+            {
+                StopInProcessFilteringAsync().GetAwaiter().GetResult();
+            }
+            catch { }
 
             _notifyIcon.Visible = false;
             base.OnFormClosing(e);

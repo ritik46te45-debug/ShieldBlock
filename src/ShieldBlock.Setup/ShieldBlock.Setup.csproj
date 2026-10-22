@@ -9,6 +9,7 @@
     <RootNamespace>ShieldBlock.Setup</RootNamespace>
     <AssemblyName>ShieldBlock-Setup</AssemblyName>
     <ApplicationIcon>icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <RollForward>LatestMajor</RollForward>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
@@ -18,6 +19,10 @@
   <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
     <Compile Include="..\ShieldBlock.Core\**\*.cs" Exclude="..\ShieldBlock.Core\obj\**;..\ShieldBlock.Core\bin\**" Link="Core\%(RecursiveDir)%(FileName)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\dist\ShieldBlock.exe')">
+    <EmbeddedResource Include="..\..\dist\ShieldBlock.exe" LogicalName="ShieldBlock.exe" />
   </ItemGroup>
 
 </Project>

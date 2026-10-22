@@ -14,13 +14,15 @@ namespace ShieldBlock.Core.Dns
         private readonly HttpClient _httpClient;
         private readonly string[] _dohEndpoints = new[]
         {
-            "https://cloudflare-dns.com/dns-query",
-            "https://dns.quad9.net/dns-query"
+            "https://1.1.1.1/dns-query",
+            "https://1.0.0.1/dns-query",
+            "https://9.9.9.9/dns-query"
         };
 
         private readonly IPEndPoint[] _fallbackUdpServers = new[]
         {
             new IPEndPoint(IPAddress.Parse("1.1.1.1"), 53),
+            new IPEndPoint(IPAddress.Parse("8.8.8.8"), 53),
             new IPEndPoint(IPAddress.Parse("9.9.9.9"), 53)
         };
 

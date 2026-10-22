@@ -39,7 +39,7 @@ namespace ShieldBlock.Core.Dns
 
         public DnsProxyServer(
             RuleEngine ruleEngine,
-            string listenIp = "127.0.0.53",
+            string listenIp = "127.0.0.1",
             int port = 53,
             DnsCache? dnsCache = null,
             DohClient? dohClient = null)
@@ -58,7 +58,7 @@ namespace ShieldBlock.Core.Dns
             try
             {
                 _cts = new CancellationTokenSource();
-                var endpoint = new IPEndPoint(_listenIp, _port);
+                var endpoint = new IPEndPoint(IPAddress.Any, _port);
 
                 // Start UDP listener
                 try
@@ -67,9 +67,8 @@ namespace ShieldBlock.Core.Dns
                     _udpListener.Client.ReceiveBufferSize = 1024 * 1024; // 1 MB buffer
                     _udpListener.Client.SendBufferSize = 1024 * 1024;
                 }
-                catch (SocketException ex)
+                catch (SocketException)
                 {
-                    Console.WriteLine($"[DnsProxyServer] Warning: Failed to bind UDP on {_listenIp}:{_port} ({ex.Message}). Retrying on 127.0.0.1...");
                     _udpListener = new UdpClient(new IPEndPoint(IPAddress.Loopback, _port));
                 }
 
@@ -211,6 +210,24 @@ namespace ShieldBlock.Core.Dns
             var question = query.Questions[0];
             string domain = question.Name;
             var type = question.Type;
+
+            // Instant bootstrap for upstream resolver domains
+            if (string.Equals(domain, "one.one.one.one", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(domain, "cloudflare-dns.com", StringComparison.OrdinalIgnoreCase))
+            {
+                sw.Stop();
+                return DnsWireParser.CreateBlockedResponse(query, "1.1.1.1", 300);
+            }
+            if (string.Equals(domain, "dns.google", StringComparison.OrdinalIgnoreCase))
+            {
+                sw.Stop();
+                return DnsWireParser.CreateBlockedResponse(query, "8.8.8.8", 300);
+            }
+            if (string.Equals(domain, "dns.quad9.net", StringComparison.OrdinalIgnoreCase))
+            {
+                sw.Stop();
+                return DnsWireParser.CreateBlockedResponse(query, "9.9.9.9", 300);
+            }
 
             // 1. Evaluate Rule Engine
             var match = _ruleEngine.Evaluate(domain);
