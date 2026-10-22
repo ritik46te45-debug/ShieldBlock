@@ -7,6 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Win32;
 using ShieldBlock.Core.Common;
 using ShieldBlock.Core.Config;
 using ShieldBlock.Core.Dns;
@@ -1046,6 +1047,9 @@ namespace ShieldBlock.UI
                 // Flush Windows DNS Cache so changes take effect immediately
                 FlushWindowsDns();
 
+                // Force Chrome & Edge to use system DNS instead of built-in DoH
+                ConfigureBrowserDoh(true);
+
                 _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection ACTIVE. Filtering network on 127.0.0.1:53.");
             }
             catch (Exception ex)
@@ -1069,10 +1073,37 @@ namespace ShieldBlock.UI
                     await _dnsConfigurator.RevertDnsAsync();
                 }
 
+                ConfigureBrowserDoh(false);
                 FlushWindowsDns();
                 _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection PAUSED. Restored adapter DNS.");
             }
             catch { }
+        }
+
+        private static void ConfigureBrowserDoh(bool disableBrowserDoh)
+        {
+            string[] browserKeys = {
+                @"Software\Policies\Google\Chrome",
+                @"Software\Policies\Microsoft\Edge"
+            };
+
+            foreach (var keyPath in browserKeys)
+            {
+                try
+                {
+                    if (disableBrowserDoh)
+                    {
+                        using var key = Registry.CurrentUser.CreateSubKey(keyPath);
+                        key?.SetValue("DnsOverHttpsMode", "off");
+                    }
+                    else
+                    {
+                        using var key = Registry.CurrentUser.OpenSubKey(keyPath, true);
+                        key?.DeleteValue("DnsOverHttpsMode", false);
+                    }
+                }
+                catch { }
+            }
         }
 
         private static void FlushWindowsDns()
