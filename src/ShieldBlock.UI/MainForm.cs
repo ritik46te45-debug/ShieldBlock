@@ -250,20 +250,22 @@ namespace ShieldBlock.UI
 
             _shieldStateLabel = new Label
             {
-                Text = _serviceSettings.ProtectionEnabled ? "System Protection Active" : "Protection Disabled",
+                Text = _serviceSettings.ProtectionEnabled ? "● SYSTEM PROTECTION ACTIVE" : "○ SYSTEM PROTECTION PAUSED",
                 Font = new Font("Segoe UI", 16f, FontStyle.Bold),
                 ForeColor = _serviceSettings.ProtectionEnabled ? ThemeColors.Emerald : ThemeColors.Amber,
                 AutoSize = true,
-                Location = new Point(135, 20)
+                Location = new Point(135, 18)
             };
 
             _shieldDescLabel = new Label
             {
-                Text = "Blocking ads, tracking, telemetry, and malicious domains across all browsers and applications.",
-                Font = new Font("Segoe UI", 10f, FontStyle.Regular),
+                Text = _serviceSettings.ProtectionEnabled 
+                    ? "ShieldBlock is actively filtering DNS queries on 127.0.0.1:53 and blocking ads across Windows." 
+                    : "Protection is currently paused. Ads and tracking scripts are not being blocked.",
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
                 ForeColor = ThemeColors.TextSecondary,
                 AutoSize = true,
-                Location = new Point(135, 54)
+                Location = new Point(135, 52)
             };
 
             _failOpenBadge = new Label
@@ -277,13 +279,13 @@ namespace ShieldBlock.UI
 
             _toggleProtectionBtn = new Button
             {
-                Text = _serviceSettings.ProtectionEnabled ? "PAUSE PROTECTION" : "ENABLE PROTECTION",
+                Text = _serviceSettings.ProtectionEnabled ? "PAUSE PROTECTION" : "★ TURN ON PROTECTION",
                 Font = new Font("Segoe UI", 11f, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = _serviceSettings.ProtectionEnabled ? ThemeColors.SurfaceHover : ThemeColors.Emerald,
+                ForeColor = _serviceSettings.ProtectionEnabled ? Color.White : Color.Black,
+                BackColor = _serviceSettings.ProtectionEnabled ? Color.FromArgb(45, 55, 72) : ThemeColors.Emerald,
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand,
-                Size = new Size(230, 46),
+                Size = new Size(240, 46),
                 Location = new Point(135, 118)
             };
             _toggleProtectionBtn.FlatAppearance.BorderSize = 0;
@@ -893,11 +895,16 @@ namespace ShieldBlock.UI
             _statusPill.Text = enable ? "● PROTECTION ACTIVE" : "○ PROTECTION PAUSED (CLICK TO ENABLE)";
             _statusPill.ForeColor = enable ? ThemeColors.Emerald : ThemeColors.Amber;
 
-            _shieldStateLabel.Text = enable ? "System Protection Active" : "Protection Disabled";
+            _shieldStateLabel.Text = enable ? "● SYSTEM PROTECTION ACTIVE" : "○ SYSTEM PROTECTION PAUSED";
             _shieldStateLabel.ForeColor = enable ? ThemeColors.Emerald : ThemeColors.Amber;
 
-            _toggleProtectionBtn.Text = enable ? "PAUSE PROTECTION" : "ENABLE PROTECTION";
-            _toggleProtectionBtn.BackColor = enable ? ThemeColors.SurfaceHover : ThemeColors.Emerald;
+            _shieldDescLabel.Text = enable
+                ? "ShieldBlock is actively filtering DNS queries on 127.0.0.1:53 and blocking ads across Windows."
+                : "Protection is currently paused. Ads and tracking scripts are not being blocked.";
+
+            _toggleProtectionBtn.Text = enable ? "PAUSE PROTECTION" : "★ TURN ON PROTECTION";
+            _toggleProtectionBtn.ForeColor = enable ? Color.White : Color.Black;
+            _toggleProtectionBtn.BackColor = enable ? Color.FromArgb(45, 55, 72) : ThemeColors.Emerald;
 
             _shieldPanel.Invalidate();
 
@@ -925,13 +932,20 @@ namespace ShieldBlock.UI
                 {
                     _inProcessRuleEngine = new RuleEngine();
 
-                    // Seed/load baseline filter lists
+                    // 1. Create FilterListManager — this seeds baseline offline rules
+                    FilterListManager? filterManager = null;
                     try
                     {
-                        var filterManager = new FilterListManager();
+                        filterManager = new FilterListManager();
+                        // Actually load the rules into the engine!
+                        filterManager.LoadAllIntoEngine(_inProcessRuleEngine);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        LogToFeed($"[WARN] FilterListManager init: {ex.Message}");
+                    }
 
+                    // 2. Also load any .txt files from the lists directory manually
                     string listsDir = Path.Combine(Constants.ProgramDataDir, "data", "lists");
                     if (Directory.Exists(listsDir))
                     {
@@ -940,57 +954,60 @@ namespace ShieldBlock.UI
                             try
                             {
                                 var lines = File.ReadAllLines(file);
-                                _inProcessRuleEngine.LoadRules(lines, Path.GetFileNameWithoutExtension(file));
+                                int count = _inProcessRuleEngine.LoadRules(lines, Path.GetFileNameWithoutExtension(file));
+                                LogToFeed($"[INFO] Loaded {count} rules from {Path.GetFileName(file)}");
                             }
                             catch { }
                         }
                     }
 
-                    // Always ensure core ad, tracker, and telemetric domains are strictly blocked
+                    // 3. Always ensure core ad/tracker domains are strictly blocked (hardcoded fallback)
                     string[] coreBlockRules = new[]
                     {
-                        "||doubleclick.net^",
-                        "||googleads.g.doubleclick.net^",
-                        "||static.doubleclick.net^",
-                        "||pubads.g.doubleclick.net^",
-                        "||securepubads.g.doubleclick.net^",
-                        "||pagead2.googlesyndication.com^",
-                        "||adservice.google.com^",
-                        "||adservice.google.co.in^",
-                        "||google-analytics.com^",
-                        "||analytics.google.com^",
-                        "||scorecardresearch.com^",
-                        "||c.amazon-adsystem.com^",
-                        "||amazon-adsystem.com^",
-                        "||aax.amazon-adsystem.com^",
-                        "||adnxs.com^",
-                        "||quantserve.com^",
-                        "||taboola.com^",
-                        "||outbrain.com^",
-                        "||rubiconproject.com^",
-                        "||pubmatic.com^",
-                        "||openx.net^",
-                        "||casalemedia.com^",
-                        "||criteo.com^",
-                        "||zedo.com^",
-                        "||adcolony.com^",
-                        "||unityads.unity3d.com^",
-                        "||popads.net^",
-                        "||propellerads.com^",
-                        "||exoclick.com^",
-                        "||adcash.com^",
-                        "||trafficjunky.com^",
-                        "||appsflyer.com^",
-                        "||an.yandex.ru^",
-                        "||hotjar.com^",
-                        "||clarity.ms^",
-                        "||s.youtube.com^",
-                        "||youtube.com/api/stats/ads^",
-                        "||youtube.com/pagead/*^",
-                        "||video-stats.l.google.com^"
+                        // Google Ads
+                        "0.0.0.0 doubleclick.net", "0.0.0.0 ad.doubleclick.net",
+                        "0.0.0.0 googleads.g.doubleclick.net", "0.0.0.0 static.doubleclick.net",
+                        "0.0.0.0 pubads.g.doubleclick.net", "0.0.0.0 securepubads.g.doubleclick.net",
+                        "0.0.0.0 pagead2.googlesyndication.com", "0.0.0.0 googlesyndication.com",
+                        "0.0.0.0 tpc.googlesyndication.com", "0.0.0.0 googleadservices.com",
+                        "0.0.0.0 adservice.google.com", "0.0.0.0 adservice.google.co.in",
+                        "0.0.0.0 www.googletagservices.com", "0.0.0.0 pagead-googlehosted.l.google.com",
+                        // Analytics & Tracking
+                        "0.0.0.0 google-analytics.com", "0.0.0.0 www.google-analytics.com",
+                        "0.0.0.0 ssl.google-analytics.com", "0.0.0.0 analytics.google.com",
+                        "0.0.0.0 scorecardresearch.com", "0.0.0.0 sb.scorecardresearch.com",
+                        "0.0.0.0 video-stats.l.google.com",
+                        // Amazon Ads
+                        "0.0.0.0 amazon-adsystem.com", "0.0.0.0 c.amazon-adsystem.com",
+                        "0.0.0.0 aax.amazon-adsystem.com",
+                        // Major Ad Networks
+                        "0.0.0.0 adnxs.com", "0.0.0.0 ib.adnxs.com",
+                        "0.0.0.0 quantserve.com", "0.0.0.0 pixel.quantserve.com",
+                        "0.0.0.0 taboola.com", "0.0.0.0 cdn.taboola.com", "0.0.0.0 trc.taboola.com",
+                        "0.0.0.0 outbrain.com", "0.0.0.0 widgets.outbrain.com",
+                        "0.0.0.0 rubiconproject.com", "0.0.0.0 pubmatic.com",
+                        "0.0.0.0 openx.net", "0.0.0.0 casalemedia.com",
+                        "0.0.0.0 criteo.com", "0.0.0.0 dis.criteo.com",
+                        "0.0.0.0 zedo.com", "0.0.0.0 adcolony.com",
+                        "0.0.0.0 unityads.unity3d.com", "0.0.0.0 popads.net",
+                        "0.0.0.0 propellerads.com", "0.0.0.0 exoclick.com",
+                        "0.0.0.0 adcash.com", "0.0.0.0 trafficjunky.com",
+                        "0.0.0.0 media.net", "0.0.0.0 mediavine.com",
+                        "0.0.0.0 ads-twitter.com", "0.0.0.0 ads.linkedin.com",
+                        "0.0.0.0 an.facebook.com", "0.0.0.0 pixel.facebook.com",
+                        // Trackers
+                        "0.0.0.0 appsflyer.com", "0.0.0.0 hotjar.com",
+                        "0.0.0.0 clarity.ms", "0.0.0.0 www.clarity.ms",
+                        "0.0.0.0 an.yandex.ru", "0.0.0.0 mc.yandex.ru",
+                        "0.0.0.0 bat.bing.com", "0.0.0.0 connect.facebook.net",
+                        "0.0.0.0 demdex.net", "0.0.0.0 omtrdc.net",
+                        "0.0.0.0 bluekai.com", "0.0.0.0 krxd.net",
+                        // YouTube ad telemetry (NOT the main domain)
+                        "0.0.0.0 s.youtube.com",
                     };
 
-                    _inProcessRuleEngine.LoadRules(coreBlockRules, "CoreAdblock");
+                    int coreCount = _inProcessRuleEngine.LoadRules(coreBlockRules, "CoreAdblock");
+                    LogToFeed($"[INFO] Total rules loaded: {_inProcessRuleEngine.LoadedRuleCount} (core={coreCount})");
 
                     _inProcessDnsProxy = new DnsProxyServer(_inProcessRuleEngine, "127.0.0.1", 53);
                     _inProcessDnsProxy.OnQueryProcessed += (s, args) =>
@@ -1003,7 +1020,8 @@ namespace ShieldBlock.UI
                                 Interlocked.Increment(ref _dnsQueriesCount);
                                 if (args.IsBlocked)
                                 {
-                                    if (args.RuleMatched.Contains("privacy", StringComparison.OrdinalIgnoreCase))
+                                    if (args.RuleMatched.Contains("privacy", StringComparison.OrdinalIgnoreCase) ||
+                                        args.RuleMatched.Contains("track", StringComparison.OrdinalIgnoreCase))
                                     {
                                         Interlocked.Increment(ref _trackersBlockedCount);
                                     }
@@ -1014,13 +1032,13 @@ namespace ShieldBlock.UI
 
                                     string logLine = $"[{DateTime.Now:HH:mm:ss}] [BLOCKED] {args.Domain} ({args.RuleMatched})";
                                     _liveFeedListBox.Items.Insert(0, logLine);
-                                    if (_liveFeedListBox.Items.Count > 100) _liveFeedListBox.Items.RemoveAt(100);
+                                    if (_liveFeedListBox.Items.Count > 200) _liveFeedListBox.Items.RemoveAt(200);
                                 }
                                 else
                                 {
                                     string logLine = $"[{DateTime.Now:HH:mm:ss}] [ALLOWED] {args.Domain}";
                                     _liveFeedListBox.Items.Insert(0, logLine);
-                                    if (_liveFeedListBox.Items.Count > 100) _liveFeedListBox.Items.RemoveAt(100);
+                                    if (_liveFeedListBox.Items.Count > 200) _liveFeedListBox.Items.RemoveAt(200);
                                 }
 
                                 _lblAdsBlockedVal.Text = _adsBlockedCount.ToString("N0");
@@ -1036,26 +1054,213 @@ namespace ShieldBlock.UI
                     };
                 }
 
-                _inProcessDnsProxy.Start();
+                // 4. Start the DNS proxy server
+                bool started = _inProcessDnsProxy.Start();
+                if (!started)
+                {
+                    LogToFeed("[ERROR] DNS proxy failed to start on port 53. Is another DNS service running?");
+                    return;
+                }
+                LogToFeed("[INFO] DNS proxy listening on 127.0.0.1:53");
 
-                // Point adapter DNS to 127.0.0.1
+                // 5. Point adapter DNS to 127.0.0.1 — try AdapterDnsConfigurator first, then direct netsh
+                bool dnsSet = false;
                 if (_dnsConfigurator != null)
                 {
-                    await _dnsConfigurator.ConfigureDnsProxyAsync("127.0.0.1");
+                    try
+                    {
+                        dnsSet = await _dnsConfigurator.ConfigureDnsProxyAsync("127.0.0.1");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogToFeed($"[WARN] AdapterDnsConfigurator failed: {ex.Message}");
+                    }
                 }
 
-                // Flush Windows DNS Cache so changes take effect immediately
+                if (!dnsSet)
+                {
+                    // Direct netsh fallback — find the active network adapter and set DNS
+                    dnsSet = await SetDnsDirectAsync("127.0.0.1");
+                }
+
+                if (dnsSet)
+                {
+                    LogToFeed("[INFO] Adapter DNS set to 127.0.0.1 ✓");
+                }
+                else
+                {
+                    LogToFeed("[WARN] Could not set adapter DNS. Run as Administrator for full protection.");
+                }
+
+                // 6. Flush Windows DNS Cache so changes take effect immediately
                 FlushWindowsDns();
 
-                // Force Chrome & Edge to use system DNS instead of built-in DoH
+                // 7. Force Chrome & Edge to use system DNS instead of built-in DoH
                 ConfigureBrowserDoh(true);
 
-                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection ACTIVE. Filtering network on 127.0.0.1:53.");
+                LogToFeed($"[SYSTEM] Protection ACTIVE. Filtering network on 127.0.0.1:53. Rules: {_inProcessRuleEngine?.LoadedRuleCount ?? 0}");
+
+                // 8. Download updated filter lists in the background (non-blocking)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(3000); // Let DNS proxy stabilize first
+                        var fm = new FilterListManager();
+                        var results = await fm.UpdateAllListsAsync();
+                        int totalNew = 0;
+                        foreach (var r in results)
+                        {
+                            if (r.Success && r.Changed) totalNew += r.RulesLoaded;
+                        }
+                        if (totalNew > 0 && _inProcessRuleEngine != null)
+                        {
+                            fm.LoadAllIntoEngine(_inProcessRuleEngine);
+                            BeginInvoke(new Action(() =>
+                            {
+                                LogToFeed($"[INFO] Downloaded & loaded {totalNew} new rules from online filter lists.");
+                            }));
+                        }
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
-                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [ERROR] Protection notice: {ex.Message}");
+                LogToFeed($"[ERROR] Protection startup failed: {ex.Message}");
             }
+        }
+
+        private void LogToFeed(string message)
+        {
+            try
+            {
+                if (IsDisposed || Disposing) return;
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(() => LogToFeed(message)));
+                    return;
+                }
+                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {message}");
+                if (_liveFeedListBox.Items.Count > 200) _liveFeedListBox.Items.RemoveAt(200);
+            }
+            catch { }
+        }
+
+        private static List<string> GetActiveAdapterNames()
+        {
+            var list = new List<string>();
+            try
+            {
+                foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                        ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback &&
+                        ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Tunnel &&
+                        !ni.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
+                        !ni.Description.Contains("Loopback", StringComparison.OrdinalIgnoreCase) &&
+                        !ni.Name.Contains("vEthernet", StringComparison.OrdinalIgnoreCase))
+                    {
+                        list.Add(ni.Name);
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        private async Task<bool> SetDnsDirectAsync(string dnsIp)
+        {
+            try
+            {
+                var adapters = GetActiveAdapterNames();
+                if (adapters.Count == 0)
+                {
+                    LogToFeed("[WARN] No active network adapter found.");
+                    return false;
+                }
+
+                bool anySuccess = false;
+                foreach (var adapterName in adapters)
+                {
+                    LogToFeed($"[INFO] Setting DNS on '{adapterName}' to {dnsIp}...");
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = $"interface ip set dns name=\"{adapterName}\" static {dnsIp} primary validate=no",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        await proc.WaitForExitAsync();
+                        if (proc.ExitCode == 0)
+                        {
+                            anySuccess = true;
+                            continue;
+                        }
+                    }
+
+                    // Fallback syntax
+                    var psi2 = new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = $"interface ipv4 set dnsservers name=\"{adapterName}\" static {dnsIp} primary validate=no",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+                    using var proc2 = Process.Start(psi2);
+                    if (proc2 != null)
+                    {
+                        await proc2.WaitForExitAsync();
+                        if (proc2.ExitCode == 0) anySuccess = true;
+                    }
+                }
+                return anySuccess;
+            }
+            catch (Exception ex)
+            {
+                LogToFeed($"[WARN] Direct DNS set failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task RevertDnsDirectAsync()
+        {
+            try
+            {
+                var adapters = GetActiveAdapterNames();
+                foreach (var adapterName in adapters)
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = $"interface ip set dns name=\"{adapterName}\" dhcp",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null) await proc.WaitForExitAsync();
+
+                    var psi2 = new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = $"interface ipv4 set dnsservers name=\"{adapterName}\" source=dhcp",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc2 = Process.Start(psi2);
+                    if (proc2 != null) await proc2.WaitForExitAsync();
+                }
+            }
+            catch { }
         }
 
         private async Task StopInProcessFilteringAsync()
@@ -1068,14 +1273,20 @@ namespace ShieldBlock.UI
                     _inProcessDnsProxy = null;
                 }
 
+                bool reverted = false;
                 if (_dnsConfigurator != null)
                 {
-                    await _dnsConfigurator.RevertDnsAsync();
+                    try { reverted = await _dnsConfigurator.RevertDnsAsync(); } catch { }
+                }
+
+                if (!reverted)
+                {
+                    await RevertDnsDirectAsync();
                 }
 
                 ConfigureBrowserDoh(false);
                 FlushWindowsDns();
-                _liveFeedListBox.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] [SYSTEM] Protection PAUSED. Restored adapter DNS.");
+                LogToFeed("[SYSTEM] Protection PAUSED. Restored adapter DNS.");
             }
             catch { }
         }
@@ -1084,11 +1295,13 @@ namespace ShieldBlock.UI
         {
             string[] browserKeys = {
                 @"Software\Policies\Google\Chrome",
-                @"Software\Policies\Microsoft\Edge"
+                @"Software\Policies\Microsoft\Edge",
+                @"Software\Policies\BraveSoftware\Brave"
             };
 
             foreach (var keyPath in browserKeys)
             {
+                // CurrentUser
                 try
                 {
                     if (disableBrowserDoh)
@@ -1103,7 +1316,44 @@ namespace ShieldBlock.UI
                     }
                 }
                 catch { }
+
+                // LocalMachine
+                try
+                {
+                    if (disableBrowserDoh)
+                    {
+                        using var key = Registry.LocalMachine.CreateSubKey(keyPath);
+                        key?.SetValue("DnsOverHttpsMode", "off");
+                    }
+                    else
+                    {
+                        using var key = Registry.LocalMachine.OpenSubKey(keyPath, true);
+                        key?.DeleteValue("DnsOverHttpsMode", false);
+                    }
+                }
+                catch { }
             }
+
+            // Mozilla Firefox
+            try
+            {
+                string ffKey = @"Software\Policies\Mozilla\Firefox\DNSOverHTTPS";
+                if (disableBrowserDoh)
+                {
+                    using var key = Registry.CurrentUser.CreateSubKey(ffKey);
+                    key?.SetValue("Enabled", 0, RegistryValueKind.DWord);
+                    using var keyLM = Registry.LocalMachine.CreateSubKey(ffKey);
+                    keyLM?.SetValue("Enabled", 0, RegistryValueKind.DWord);
+                }
+                else
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(ffKey, true);
+                    key?.DeleteValue("Enabled", false);
+                    using var keyLM = Registry.LocalMachine.OpenSubKey(ffKey, true);
+                    keyLM?.DeleteValue("Enabled", false);
+                }
+            }
+            catch { }
         }
 
         private static void FlushWindowsDns()

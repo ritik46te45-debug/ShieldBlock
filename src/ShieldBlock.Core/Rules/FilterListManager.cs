@@ -46,8 +46,22 @@ namespace ShieldBlock.Core.Rules
                     var list = JsonSerializer.Deserialize<List<FilterListSubscription>>(json);
                     if (list != null && list.Count > 0)
                     {
-                        _subscriptions.AddRange(list);
-                        return;
+                        bool hasModernLists = false;
+                        foreach (var sub in list)
+                        {
+                            if (sub.Id == "adblock-core" || sub.Id == "adguard-dns")
+                            {
+                                hasModernLists = true;
+                                break;
+                            }
+                        }
+
+                        if (hasModernLists)
+                        {
+                            _subscriptions.AddRange(list);
+                            EnsureOfflineDefaults();
+                            return;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -79,6 +93,7 @@ namespace ShieldBlock.Core.Rules
 
         private void SeedDefaultSubscriptions()
         {
+            _subscriptions.Clear();
             _subscriptions.AddRange(new[]
             {
                 new FilterListSubscription
@@ -86,7 +101,8 @@ namespace ShieldBlock.Core.Rules
                     Id = "adblock-core",
                     Name = "ShieldBlock Core Ad Protection",
                     Category = "Ads",
-                    Url = "https://raw.githubusercontent.com/AdguardTeam/AdguardFilters/master/BaseFilter/sections/adservers.txt",
+                    // Steven Black unified hosts — the gold standard for DNS-level ad blocking
+                    Url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
                     Enabled = true,
                     LocalFilePath = Path.Combine(_listsDirectory, "adblock-core.txt")
                 },
@@ -95,7 +111,8 @@ namespace ShieldBlock.Core.Rules
                     Id = "privacy-tracking",
                     Name = "ShieldBlock Privacy & Anti-Tracker",
                     Category = "Privacy",
-                    Url = "https://raw.githubusercontent.com/AdguardTeam/AdguardFilters/master/SpywareFilter/sections/tracking_servers.txt",
+                    // Peter Lowe's ad and tracking server list (domain format)
+                    Url = "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
                     Enabled = true,
                     LocalFilePath = Path.Combine(_listsDirectory, "privacy-tracking.txt")
                 },
@@ -110,12 +127,13 @@ namespace ShieldBlock.Core.Rules
                 },
                 new FilterListSubscription
                 {
-                    Id = "youtube-annoyances",
-                    Name = "ShieldBlock YouTube & Media Ad Rules",
-                    Category = "Annoyances",
-                    Url = "https://raw.githubusercontent.com/AdguardTeam/AdguardFilters/master/AnnoyancesFilter/sections/popups.txt",
+                    Id = "adguard-dns",
+                    Name = "AdGuard DNS Filter",
+                    Category = "Ads",
+                    // AdGuard DNS filter — specifically for DNS-level blocking
+                    Url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt",
                     Enabled = true,
-                    LocalFilePath = Path.Combine(_listsDirectory, "youtube-annoyances.txt")
+                    LocalFilePath = Path.Combine(_listsDirectory, "adguard-dns.txt")
                 }
             });
 
@@ -127,7 +145,18 @@ namespace ShieldBlock.Core.Rules
         {
             foreach (var sub in _subscriptions)
             {
-                if (!File.Exists(sub.LocalFilePath))
+                bool needsWrite = !File.Exists(sub.LocalFilePath);
+                if (!needsWrite)
+                {
+                    try
+                    {
+                        var fi = new FileInfo(sub.LocalFilePath);
+                        if (fi.Length < 1000) needsWrite = true;
+                    }
+                    catch { needsWrite = true; }
+                }
+
+                if (needsWrite)
                 {
                     string baselineContent = GenerateBaselineRules(sub.Id);
                     File.WriteAllText(sub.LocalFilePath, baselineContent);
@@ -140,60 +169,125 @@ namespace ShieldBlock.Core.Rules
         private string GenerateBaselineRules(string listId)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("! Title: ShieldBlock Offline Baseline");
-            sb.AppendLine("! Version: 1.0.0");
-            sb.AppendLine("! Description: Curated baseline rules for instant offline protection");
+            sb.AppendLine("# ShieldBlock Offline Baseline");
+            sb.AppendLine("# Version: 1.0.0");
+            sb.AppendLine("# Description: Curated baseline rules for instant offline protection");
             sb.AppendLine();
 
             switch (listId)
             {
                 case "adblock-core":
-                    sb.AppendLine("||doubleclick.net^");
-                    sb.AppendLine("||googlesyndication.com^");
-                    sb.AppendLine("||googleadservices.com^");
-                    sb.AppendLine("||adnxs.com^");
-                    sb.AppendLine("||adroll.com^");
-                    sb.AppendLine("||criteo.com^");
-                    sb.AppendLine("||taboola.com^");
-                    sb.AppendLine("||outbrain.com^");
-                    sb.AppendLine("||rubiconproject.com^");
-                    sb.AppendLine("||pubmatic.com^");
-                    sb.AppendLine("||scorecardresearch.com^");
-                    sb.AppendLine("||casalemedia.com^");
-                    sb.AppendLine("||openx.net^");
-                    sb.AppendLine("||smartadserver.com^");
-                    sb.AppendLine("||zedo.com^");
+                    // Top ad-serving domains in hosts format
+                    var adDomains = new[] {
+                        "doubleclick.net", "ad.doubleclick.net", "pagead2.googlesyndication.com",
+                        "googlesyndication.com", "googleadservices.com", "adservice.google.com",
+                        "adservice.google.co.in", "adservice.google.co.uk", "adservice.google.de",
+                        "pagead-googlehosted.l.google.com", "tpc.googlesyndication.com",
+                        "www.googletagservices.com", "securepubads.g.doubleclick.net",
+                        "pubads.g.doubleclick.net", "static.doubleclick.net",
+                        "adnxs.com", "ib.adnxs.com", "adroll.com", "d.adroll.com",
+                        "criteo.com", "dis.criteo.com", "cas.criteo.com", "bidder.criteo.com",
+                        "taboola.com", "cdn.taboola.com", "trc.taboola.com",
+                        "outbrain.com", "amplify.outbrain.com", "widgets.outbrain.com",
+                        "rubiconproject.com", "fastlane.rubiconproject.com",
+                        "pubmatic.com", "ads.pubmatic.com", "image2.pubmatic.com",
+                        "openx.net", "us-u.openx.net", "ox-d.servedbyopenx.com",
+                        "casalemedia.com", "www.casalemedia.com", "htl.bid",
+                        "smartadserver.com", "zedo.com", "ad.atdmt.com", "adform.net",
+                        "advertising.com", "yieldmanager.com", "adbrite.com",
+                        "buysellads.com", "mediavine.com", "media.net",
+                        "amazon-adsystem.com", "c.amazon-adsystem.com", "aax.amazon-adsystem.com",
+                        "popads.net", "propellerads.com", "exoclick.com", "adcash.com",
+                        "trafficjunky.com", "juicyads.com", "exponential.com",
+                        "revcontent.com", "mgid.com", "sharethrough.com",
+                        "ads-twitter.com", "ads.linkedin.com", "an.facebook.com",
+                        "adskeeper.com", "ad-delivery.net", "bidswitch.net",
+                        "contextweb.com", "districtm.io", "indexexchange.com",
+                        "sovrn.com", "lijit.com", "adtech.de", "yieldmo.com",
+                        "33across.com", "tribalfusion.com", "conversantmedia.com",
+                        "undertone.com", "gumgum.com", "appnexus.com",
+                        "spotxchange.com", "springserve.com", "brightcom.com",
+                        "ads.yahoo.com", "gemini.yahoo.com",
+                        "unityads.unity3d.com", "adcolony.com", "vungle.com",
+                        "applovin.com", "mopub.com", "inmobi.com",
+                        "supersonicads.com", "chartboost.com", "fyber.com",
+                        "ad.turn.com", "mathtag.com", "rlcdn.com",
+                        "smaato.net", "startapp.com", "admob.com"
+                    };
+                    foreach (var d in adDomains)
+                        sb.AppendLine($"0.0.0.0 {d}");
                     break;
 
                 case "privacy-tracking":
-                    sb.AppendLine("||google-analytics.com^");
-                    sb.AppendLine("||analytics.google.com^");
-                    sb.AppendLine("||hotjar.com^");
-                    sb.AppendLine("||segment.io^");
-                    sb.AppendLine("||segment.com^");
-                    sb.AppendLine("||quantserve.com^");
-                    sb.AppendLine("||telemetry.microsoft.com^");
-                    sb.AppendLine("||vortex.data.microsoft.com^");
-                    sb.AppendLine("||metrics.data.microsoft.com^");
-                    sb.AppendLine("||mixpanel.com^");
-                    sb.AppendLine("||clarity.ms^");
-                    sb.AppendLine("||branch.io^");
+                    var trackingDomains = new[] {
+                        "google-analytics.com", "analytics.google.com",
+                        "www.google-analytics.com", "ssl.google-analytics.com",
+                        "hotjar.com", "static.hotjar.com", "script.hotjar.com",
+                        "segment.io", "segment.com", "cdn.segment.com", "api.segment.io",
+                        "quantserve.com", "pixel.quantserve.com",
+                        "telemetry.microsoft.com", "vortex.data.microsoft.com",
+                        "metrics.data.microsoft.com", "settings-win.data.microsoft.com",
+                        "watson.telemetry.microsoft.com", "watson.microsoft.com",
+                        "mixpanel.com", "api.mixpanel.com", "cdn.mxpnl.com",
+                        "clarity.ms", "www.clarity.ms",
+                        "branch.io", "api.branch.io", "cdn.branch.io",
+                        "scorecardresearch.com", "sb.scorecardresearch.com",
+                        "appsflyer.com", "t.appsflyer.com",
+                        "adjust.com", "app.adjust.com",
+                        "amplitude.com", "api.amplitude.com",
+                        "mouseflow.com", "fullstory.com", "rs.fullstory.com",
+                        "newrelic.com", "bam.nr-data.net", "js-agent.newrelic.com",
+                        "bugsnag.com", "sessions.bugsnag.com",
+                        "sentry.io", "o0.ingest.sentry.io",
+                        "crazyegg.com", "script.crazyegg.com",
+                        "inspectlet.com", "cdn.inspectlet.com",
+                        "heapanalytics.com", "cdn.heapanalytics.com",
+                        "kissmetrics.com", "i.kissmetrics.com",
+                        "optimizely.com", "cdn.optimizely.com",
+                        "pingdom.net", "freshmarketer.com",
+                        "an.yandex.ru", "mc.yandex.ru", "metrika.yandex.ru",
+                        "pixel.facebook.com", "connect.facebook.net",
+                        "bat.bing.com", "c.bing.com",
+                        "ads.linkedin.com", "analytics.twitter.com",
+                        "demdex.net", "omtrdc.net", "2o7.net",
+                        "bluekai.com", "krxd.net", "exelator.com",
+                        "agkn.com", "eyeota.net", "adsrvr.org",
+                        "bounceexchange.com", "bouncex.net",
+                        "tapad.com", "pippio.com", "adsymptotic.com"
+                    };
+                    foreach (var d in trackingDomains)
+                        sb.AppendLine($"0.0.0.0 {d}");
                     break;
 
                 case "malware-security":
-                    sb.AppendLine("||malware-check.invalid^");
-                    sb.AppendLine("||phishing-alert.invalid^");
-                    sb.AppendLine("||ransomware-tracker.invalid^");
-                    sb.AppendLine("||cryptominer-pool.invalid^");
+                    sb.AppendLine("0.0.0.0 malware-check.invalid");
+                    sb.AppendLine("0.0.0.0 phishing-alert.invalid");
+                    sb.AppendLine("0.0.0.0 ransomware-tracker.invalid");
+                    sb.AppendLine("0.0.0.0 cryptominer-pool.invalid");
+                    sb.AppendLine("0.0.0.0 coin-hive.com");
+                    sb.AppendLine("0.0.0.0 coinhive.com");
+                    sb.AppendLine("0.0.0.0 crypto-loot.com");
+                    sb.AppendLine("0.0.0.0 cryptaloot.pro");
                     break;
 
-                case "youtube-annoyances":
-                    sb.AppendLine("||youtube.com/api/stats/ads^");
-                    sb.AppendLine("||youtube.com/pagead/*^");
-                    sb.AppendLine("||googlevideo.com/videoplayback?*&oad=*^");
-                    sb.AppendLine("||youtube.com/get_video_info?*&adformat=*^");
-                    sb.AppendLine("||youtube.com/ptracking^*");
-                    sb.AppendLine("||s.youtube.com/api/stats^*");
+                case "adguard-dns":
+                    // Additional ad domains not covered above
+                    var extraAdDomains = new[] {
+                        "video-stats.l.google.com", "r.turn.com",
+                        "advertising-api-eu.amazon.com",
+                        "aax-us-east.amazon-adsystem.com", "aax-eu.amazon-adsystem.com",
+                        "fls-na.amazon-adsystem.com", "mads.amazon-adsystem.com",
+                        "adtago.s3.amazonaws.com", "analyticsengine.s3.amazonaws.com",
+                        "advice-ads.s3.amazonaws.com",
+                        "affiliationjs.s3.amazonaws.com",
+                        "widgets.pinterest.com", "log.pinterest.com",
+                        "ads.pinterest.com",
+                        "static.ads-twitter.com", "syndication.twitter.com",
+                        "ib.insightexpressai.com", "mfadsrvr.com",
+                        "cdn.fraudlogix.com"
+                    };
+                    foreach (var d in extraAdDomains)
+                        sb.AppendLine($"0.0.0.0 {d}");
                     break;
             }
 

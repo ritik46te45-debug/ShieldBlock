@@ -19,6 +19,38 @@ namespace ShieldBlock.Core.Rules
                 return null;
             }
 
+            // ----- Hosts-file format support -----
+            // Lines like "0.0.0.0 domain.com" or "127.0.0.1 domain.com" from hosts-file blocklists
+            if (trimmed.StartsWith("0.0.0.0 ") || trimmed.StartsWith("127.0.0.1 ") ||
+                trimmed.StartsWith("0.0.0.0\t") || trimmed.StartsWith("127.0.0.1\t"))
+            {
+                var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    string hostDomain = parts[1].Trim().ToLowerInvariant();
+                    // Skip localhost entries and empty domains
+                    if (!string.IsNullOrEmpty(hostDomain) &&
+                        hostDomain != "localhost" &&
+                        hostDomain != "localhost.localdomain" &&
+                        hostDomain != "local" &&
+                        hostDomain != "broadcasthost" &&
+                        hostDomain != "ip6-localhost" &&
+                        hostDomain != "ip6-loopback" &&
+                        hostDomain.Contains('.'))
+                    {
+                        return new FilterRule
+                        {
+                            RuleId = InterlockedIncrement(),
+                            RawRule = trimmed,
+                            SourceList = sourceList,
+                            Kind = RuleKind.DomainBlock,
+                            Domain = hostDomain
+                        };
+                    }
+                }
+                return null;
+            }
+
             var rule = new FilterRule
             {
                 RuleId = InterlockedIncrement(),
@@ -49,32 +81,55 @@ namespace ShieldBlock.Core.Rules
             {
                 trimmed = trimmed.Substring(2);
                 int endOfDomain = trimmed.IndexOf('^');
-                if (endOfDomain < 0) endOfDomain = trimmed.IndexOf('/');
                 if (endOfDomain < 0) endOfDomain = trimmed.IndexOf('$');
 
+                string domainPart;
                 if (endOfDomain >= 0)
                 {
-                    rule.Domain = trimmed.Substring(0, endOfDomain).Trim().ToLowerInvariant();
-                    if (trimmed.Length > endOfDomain + 1)
-                    {
-                        rule.PathPattern = trimmed.Substring(endOfDomain + 1);
-                    }
+                    domainPart = trimmed.Substring(0, endOfDomain).Trim().ToLowerInvariant();
                 }
                 else
                 {
-                    rule.Domain = trimmed.Trim().ToLowerInvariant();
+                    domainPart = trimmed.Trim().ToLowerInvariant();
                 }
 
+                // DNS-level blocking: if the "domain" contains a slash, it's a URL-path pattern.
+                // Extract just the domain portion for DNS blocking.
+                int slashIdx = domainPart.IndexOf('/');
+                if (slashIdx >= 0)
+                {
+                    rule.PathPattern = domainPart.Substring(slashIdx);
+                    domainPart = domainPart.Substring(0, slashIdx);
+                }
+
+                // Skip rules that are pure path patterns with no domain
+                if (string.IsNullOrEmpty(domainPart) || !domainPart.Contains('.'))
+                {
+                    return null;
+                }
+
+                // Skip rules that contain wildcards in the domain (can't do DNS-level matching)
+                if (domainPart.Contains('*') || domainPart.Contains('?'))
+                {
+                    return null;
+                }
+
+                rule.Domain = domainPart;
                 rule.Kind = isException ? RuleKind.DomainAllow : RuleKind.DomainBlock;
                 return rule;
             }
 
-            // 4. Standard path/URL pattern
-            rule.Domain = string.Empty;
-            rule.PathPattern = trimmed;
-            rule.Kind = isException ? RuleKind.UrlAllow : RuleKind.UrlBlock;
+            // 4. Plain domain lines (no prefix, no path) — common in domain-list blocklists
+            if (!trimmed.Contains('/') && !trimmed.Contains('*') && !trimmed.Contains('$') &&
+                !trimmed.Contains('#') && trimmed.Contains('.') && !trimmed.Contains(' '))
+            {
+                rule.Domain = trimmed.ToLowerInvariant();
+                rule.Kind = isException ? RuleKind.DomainAllow : RuleKind.DomainBlock;
+                return rule;
+            }
 
-            return rule;
+            // 5. Standard path/URL pattern (skip for DNS-only blocking)
+            return null;
         }
 
         private static int InterlockedIncrement()
