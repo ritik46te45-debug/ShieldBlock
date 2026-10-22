@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{2841C0A2-DF72-4AC7-8C0C-6FC20454706F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.Core", "src\ShieldBlock.Core\ShieldBlock.Core.csproj", "{082E4671-8221-42FC-A81B-5749EEC6B62C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.Service", "src\ShieldBlock.Service\ShieldBlock.Service.csproj", "{58A23082-74BB-40EF-81D7-21BD39DA1AC5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.UI", "src\ShieldBlock.UI\ShieldBlock.UI.csproj", "{6E888FFF-04FD-4629-A445-7A3B053ECDF8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.Recovery", "src\ShieldBlock.Recovery\ShieldBlock.Recovery.csproj", "{940A53A4-87F6-49B9-B3D1-2B7413A36DDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.Setup", "src\ShieldBlock.Setup\ShieldBlock.Setup.csproj", "{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{561346DE-F0BB-4A6F-9D34-9C4130E1662D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShieldBlock.Tests", "tests\ShieldBlock.Tests\ShieldBlock.Tests.csproj", "{9BC82672-F7F5-40EC-AA6D-AA9F510B8478}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{082E4671-8221-42FC-A81B-5749EEC6B62C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{082E4671-8221-42FC-A81B-5749EEC6B62C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{082E4671-8221-42FC-A81B-5749EEC6B62C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{082E4671-8221-42FC-A81B-5749EEC6B62C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58A23082-74BB-40EF-81D7-21BD39DA1AC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58A23082-74BB-40EF-81D7-21BD39DA1AC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58A23082-74BB-40EF-81D7-21BD39DA1AC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58A23082-74BB-40EF-81D7-21BD39DA1AC5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E888FFF-04FD-4629-A445-7A3B053ECDF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E888FFF-04FD-4629-A445-7A3B053ECDF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E888FFF-04FD-4629-A445-7A3B053ECDF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E888FFF-04FD-4629-A445-7A3B053ECDF8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{940A53A4-87F6-49B9-B3D1-2B7413A36DDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{940A53A4-87F6-49B9-B3D1-2B7413A36DDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{940A53A4-87F6-49B9-B3D1-2B7413A36DDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{940A53A4-87F6-49B9-B3D1-2B7413A36DDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BC82672-F7F5-40EC-AA6D-AA9F510B8478}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BC82672-F7F5-40EC-AA6D-AA9F510B8478}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BC82672-F7F5-40EC-AA6D-AA9F510B8478}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BC82672-F7F5-40EC-AA6D-AA9F510B8478}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{082E4671-8221-42FC-A81B-5749EEC6B62C} = {2841C0A2-DF72-4AC7-8C0C-6FC20454706F}
+		{58A23082-74BB-40EF-81D7-21BD39DA1AC5} = {2841C0A2-DF72-4AC7-8C0C-6FC20454706F}
+		{6E888FFF-04FD-4629-A445-7A3B053ECDF8} = {2841C0A2-DF72-4AC7-8C0C-6FC20454706F}
+		{940A53A4-87F6-49B9-B3D1-2B7413A36DDF} = {2841C0A2-DF72-4AC7-8C0C-6FC20454706F}
+		{44622AB5-47B8-451E-9A9E-4BC7EB7D8DE2} = {2841C0A2-DF72-4AC7-8C0C-6FC20454706F}
+		{9BC82672-F7F5-40EC-AA6D-AA9F510B8478} = {561346DE-F0BB-4A6F-9D34-9C4130E1662D}
+	EndGlobalSection
+EndGlobal

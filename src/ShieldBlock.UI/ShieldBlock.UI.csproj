@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>ShieldBlock.UI</RootNamespace>
+    <AssemblyName>ShieldBlock</AssemblyName>
+    <RollForward>LatestMajor</RollForward>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ShieldBlock.Core\**\*.cs" Exclude="..\ShieldBlock.Core\obj\**;..\ShieldBlock.Core\bin\**" Link="Core\%(RecursiveDir)%(FileName)%(Extension)" />
+  </ItemGroup>
+
+</Project>

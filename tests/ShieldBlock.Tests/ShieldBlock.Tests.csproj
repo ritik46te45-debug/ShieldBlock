@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>ShieldBlock.Tests</RootNamespace>
+    <AssemblyName>ShieldBlock.Tests</AssemblyName>
+    <RollForward>LatestMajor</RollForward>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\ShieldBlock.Core\**\*.cs" Exclude="..\..\src\ShieldBlock.Core\obj\**;..\..\src\ShieldBlock.Core\bin\**" Link="Core\%(RecursiveDir)%(FileName)%(Extension)" />
+  </ItemGroup>
+</Project>

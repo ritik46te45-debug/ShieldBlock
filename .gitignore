@@ -1,0 +1,23 @@
+## Build results
+**/bin/
+**/obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+tests/publish/
+
+## Visual Studio cache
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.ide/
+.vscode/
+
+## Temporary and local test files
+*.tmp
+*.log
