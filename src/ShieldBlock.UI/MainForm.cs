@@ -82,7 +82,11 @@ namespace ShieldBlock.UI
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = ThemeColors.Background;
             ForeColor = ThemeColors.TextPrimary;
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            try
+            {
+                Icon = IconHelper.CreateShieldIcon(48);
+            }
+            catch { }
             DoubleBuffered = true;
         }
 
@@ -121,14 +125,16 @@ namespace ShieldBlock.UI
 
             _statusPill = new Label
             {
-                Text = _serviceSettings.ProtectionEnabled ? "● PROTECTION ACTIVE" : "○ PROTECTION PAUSED",
+                Text = _serviceSettings.ProtectionEnabled ? "● PROTECTION ACTIVE" : "○ PROTECTION PAUSED (CLICK TO ENABLE)",
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 ForeColor = _serviceSettings.ProtectionEnabled ? ThemeColors.Emerald : ThemeColors.Amber,
                 BackColor = ThemeColors.Card,
                 AutoSize = true,
+                Cursor = Cursors.Hand,
                 Padding = new Padding(10, 5, 10, 5),
                 Location = new Point(245, 19)
             };
+            _statusPill.Click += OnToggleProtectionClicked;
 
             _emergencyDisableBtn = new Button
             {
@@ -198,7 +204,7 @@ namespace ShieldBlock.UI
             // Top Shield Card
             _shieldPanel = new Panel
             {
-                Size = new Size(880, 170),
+                Size = new Size(880, 195),
                 BackColor = ThemeColors.Surface,
                 Location = new Point(25, 20),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
@@ -235,7 +241,7 @@ namespace ShieldBlock.UI
                 Font = new Font("Segoe UI", 16f, FontStyle.Bold),
                 ForeColor = _serviceSettings.ProtectionEnabled ? ThemeColors.Emerald : ThemeColors.Amber,
                 AutoSize = true,
-                Location = new Point(135, 32)
+                Location = new Point(135, 20)
             };
 
             _shieldDescLabel = new Label
@@ -244,7 +250,7 @@ namespace ShieldBlock.UI
                 Font = new Font("Segoe UI", 10f, FontStyle.Regular),
                 ForeColor = ThemeColors.TextSecondary,
                 AutoSize = true,
-                Location = new Point(135, 68)
+                Location = new Point(135, 54)
             };
 
             _failOpenBadge = new Label
@@ -253,22 +259,21 @@ namespace ShieldBlock.UI
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 ForeColor = ThemeColors.Cyan,
                 AutoSize = true,
-                Location = new Point(135, 105)
+                Location = new Point(135, 80)
             };
 
             _toggleProtectionBtn = new Button
             {
-                Text = _serviceSettings.ProtectionEnabled ? "TURN OFF" : "TURN ON",
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Text = _serviceSettings.ProtectionEnabled ? "PAUSE PROTECTION" : "ENABLE PROTECTION",
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = _serviceSettings.ProtectionEnabled ? ThemeColors.SurfaceHover : ThemeColors.Emerald,
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand,
-                Size = new Size(130, 42),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point(_shieldPanel.Width - 160, 45)
+                Size = new Size(230, 46),
+                Location = new Point(135, 118)
             };
-            _toggleProtectionBtn.FlatAppearance.BorderColor = ThemeColors.Border;
+            _toggleProtectionBtn.FlatAppearance.BorderSize = 0;
             _toggleProtectionBtn.Click += OnToggleProtectionClicked;
 
             _shieldPanel.Controls.AddRange(new Control[] {
@@ -278,7 +283,7 @@ namespace ShieldBlock.UI
             // 4 Stat Cards
             var statsContainer = new TableLayoutPanel
             {
-                Location = new Point(25, 205),
+                Location = new Point(25, 230),
                 Size = new Size(880, 100),
                 ColumnCount = 4,
                 RowCount = 1,
@@ -289,10 +294,10 @@ namespace ShieldBlock.UI
             statsContainer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             statsContainer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
 
-            _lblAdsBlockedVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.Emerald, Text = _adsBlockedCount.ToString("N0"), AutoSize = true, Location = new Point(15, 20) };
-            _lblTrackersVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.Cyan, Text = _trackersBlockedCount.ToString("N0"), AutoSize = true, Location = new Point(15, 20) };
-            _lblDnsQueriesVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.TextPrimary, Text = _dnsQueriesCount.ToString("N0"), AutoSize = true, Location = new Point(15, 20) };
-            _lblAvgLatencyVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.TextPrimary, Text = "0.03 ms", AutoSize = true, Location = new Point(15, 20) };
+            _lblAdsBlockedVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.Emerald, Text = "0", AutoSize = true, Location = new Point(15, 20) };
+            _lblTrackersVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.Cyan, Text = "0", AutoSize = true, Location = new Point(15, 20) };
+            _lblDnsQueriesVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.TextPrimary, Text = "0", AutoSize = true, Location = new Point(15, 20) };
+            _lblAvgLatencyVal = new Label { Font = new Font("Segoe UI", 18f, FontStyle.Bold), ForeColor = ThemeColors.TextPrimary, Text = "0.0 ms", AutoSize = true, Location = new Point(15, 20) };
 
             statsContainer.Controls.Add(CreateStatCard("ADS BLOCKED", _lblAdsBlockedVal), 0, 0);
             statsContainer.Controls.Add(CreateStatCard("TRACKERS BLOCKED", _lblTrackersVal), 1, 0);
@@ -302,16 +307,16 @@ namespace ShieldBlock.UI
             // Activity Log / Live Feed
             var feedHeader = new Label
             {
-                Text = "LIVE FILTERING FEED (ANONYMIZED)",
+                Text = "LIVE FILTERING FEED (REAL-TIME)",
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary,
-                Location = new Point(25, 320),
+                Location = new Point(25, 345),
                 AutoSize = true
             };
 
             _liveFeedListBox = new ListBox
             {
-                Location = new Point(25, 345),
+                Location = new Point(25, 370),
                 Size = new Size(880, 200),
                 BackColor = ThemeColors.Surface,
                 ForeColor = ThemeColors.TextPrimary,
@@ -872,13 +877,13 @@ namespace ShieldBlock.UI
             _serviceSettings.ProtectionEnabled = enable;
             _configManager.SaveServiceSettings(_serviceSettings);
 
-            _statusPill.Text = enable ? "● PROTECTION ACTIVE" : "○ PROTECTION PAUSED";
+            _statusPill.Text = enable ? "● PROTECTION ACTIVE" : "○ PROTECTION PAUSED (CLICK TO ENABLE)";
             _statusPill.ForeColor = enable ? ThemeColors.Emerald : ThemeColors.Amber;
 
             _shieldStateLabel.Text = enable ? "System Protection Active" : "Protection Disabled";
             _shieldStateLabel.ForeColor = enable ? ThemeColors.Emerald : ThemeColors.Amber;
 
-            _toggleProtectionBtn.Text = enable ? "TURN OFF" : "TURN ON";
+            _toggleProtectionBtn.Text = enable ? "PAUSE PROTECTION" : "ENABLE PROTECTION";
             _toggleProtectionBtn.BackColor = enable ? ThemeColors.SurfaceHover : ThemeColors.Emerald;
 
             if (enable)

@@ -35,6 +35,11 @@ namespace ShieldBlock.Setup
 
         public InstallerForm()
         {
+            try
+            {
+                Icon = IconHelper.CreateShieldIcon(48);
+            }
+            catch { }
             InitializeComponent();
         }
 

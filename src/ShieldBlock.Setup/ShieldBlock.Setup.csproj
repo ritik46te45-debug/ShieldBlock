@@ -8,6 +8,7 @@
     <LangVersion>12.0</LangVersion>
     <RootNamespace>ShieldBlock.Setup</RootNamespace>
     <AssemblyName>ShieldBlock-Setup</AssemblyName>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
     <RollForward>LatestMajor</RollForward>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
