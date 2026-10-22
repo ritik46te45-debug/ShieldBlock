@@ -179,12 +179,17 @@ namespace ShieldBlock.Core.Rules
                 case "adblock-core":
                     // Top ad-serving domains in hosts format
                     var adDomains = new[] {
+                        // YouTube & Google Ad Networks
                         "doubleclick.net", "ad.doubleclick.net", "pagead2.googlesyndication.com",
                         "googlesyndication.com", "googleadservices.com", "adservice.google.com",
                         "adservice.google.co.in", "adservice.google.co.uk", "adservice.google.de",
                         "pagead-googlehosted.l.google.com", "tpc.googlesyndication.com",
                         "www.googletagservices.com", "securepubads.g.doubleclick.net",
                         "pubads.g.doubleclick.net", "static.doubleclick.net",
+                        "googleads.g.doubleclick.net", "stats.g.doubleclick.net",
+                        "adclick.g.doubleclick.net", "ad.youtube.com", "ads.youtube.com",
+                        "s.youtube.com", "video-stats.l.google.com",
+                        // Programmatic Ad Exchanges & SSPs
                         "adnxs.com", "ib.adnxs.com", "adroll.com", "d.adroll.com",
                         "criteo.com", "dis.criteo.com", "cas.criteo.com", "bidder.criteo.com",
                         "taboola.com", "cdn.taboola.com", "trc.taboola.com",
@@ -212,7 +217,8 @@ namespace ShieldBlock.Core.Rules
                         "applovin.com", "mopub.com", "inmobi.com",
                         "supersonicads.com", "chartboost.com", "fyber.com",
                         "ad.turn.com", "mathtag.com", "rlcdn.com",
-                        "smaato.net", "startapp.com", "admob.com"
+                        "smaato.net", "startapp.com", "admob.com",
+                        "adpushup.com", "adsterra.com", "colossusssp.com"
                     };
                     foreach (var d in adDomains)
                         sb.AppendLine($"0.0.0.0 {d}");

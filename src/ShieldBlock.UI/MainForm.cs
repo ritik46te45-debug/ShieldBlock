@@ -12,6 +12,7 @@ using ShieldBlock.Core.Common;
 using ShieldBlock.Core.Config;
 using ShieldBlock.Core.Dns;
 using ShieldBlock.Core.Ipc;
+using ShieldBlock.Core.Network;
 using ShieldBlock.Core.Rules;
 using ShieldBlock.Core.Safety;
 using ShieldBlock.Core.Stats;
@@ -29,6 +30,7 @@ namespace ShieldBlock.UI
         private readonly IpcClient _ipcClient = new IpcClient();
         private RuleEngine? _inProcessRuleEngine;
         private DnsProxyServer? _inProcessDnsProxy;
+        private HttpFilteringProxy? _inProcessHttpProxy;
         private AdapterDnsConfigurator? _dnsConfigurator;
 
         // UI Controls
@@ -1054,14 +1056,71 @@ namespace ShieldBlock.UI
                     };
                 }
 
-                // 4. Start the DNS proxy server
+                // 4. Start the DNS proxy server (Port 53)
                 bool started = _inProcessDnsProxy.Start();
-                if (!started)
+                if (started)
                 {
-                    LogToFeed("[ERROR] DNS proxy failed to start on port 53. Is another DNS service running?");
-                    return;
+                    LogToFeed("[INFO] DNS proxy listening on 127.0.0.1:53");
                 }
-                LogToFeed("[INFO] DNS proxy listening on 127.0.0.1:53");
+                else
+                {
+                    LogToFeed("[WARN] DNS proxy could not bind port 53 (elevated rights required). Using System Proxy.");
+                }
+
+                // 5. Start the System-Level HTTP/HTTPS Filtering Proxy (AdGuard style)
+                if (_inProcessHttpProxy == null && _inProcessRuleEngine != null)
+                {
+                    _inProcessHttpProxy = new HttpFilteringProxy(_inProcessRuleEngine, 8888);
+                    _inProcessHttpProxy.OnRequestProcessed += (s, args) =>
+                    {
+                        try
+                        {
+                            if (IsDisposed || Disposing) return;
+                            BeginInvoke(new Action(() =>
+                            {
+                                Interlocked.Increment(ref _dnsQueriesCount);
+                                if (args.IsBlocked)
+                                {
+                                    if (args.RuleMatched.Contains("privacy", StringComparison.OrdinalIgnoreCase) ||
+                                        args.RuleMatched.Contains("track", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        Interlocked.Increment(ref _trackersBlockedCount);
+                                    }
+                                    else
+                                    {
+                                        Interlocked.Increment(ref _adsBlockedCount);
+                                    }
+
+                                    string logLine = $"[{DateTime.Now:HH:mm:ss}] [BLOCKED] {args.Domain} ({args.RuleMatched})";
+                                    _liveFeedListBox.Items.Insert(0, logLine);
+                                    if (_liveFeedListBox.Items.Count > 200) _liveFeedListBox.Items.RemoveAt(200);
+                                }
+                                else
+                                {
+                                    string logLine = $"[{DateTime.Now:HH:mm:ss}] [ALLOWED] {args.Domain}";
+                                    _liveFeedListBox.Items.Insert(0, logLine);
+                                    if (_liveFeedListBox.Items.Count > 200) _liveFeedListBox.Items.RemoveAt(200);
+                                }
+
+                                _lblAdsBlockedVal.Text = _adsBlockedCount.ToString("N0");
+                                _lblTrackersVal.Text = _trackersBlockedCount.ToString("N0");
+                                _lblDnsQueriesVal.Text = _dnsQueriesCount.ToString("N0");
+                                if (args.Latency.TotalMilliseconds > 0)
+                                {
+                                    _lblAvgLatencyVal.Text = $"{args.Latency.TotalMilliseconds:F1} ms";
+                                }
+                            }));
+                        }
+                        catch { }
+                    };
+
+                    bool httpStarted = _inProcessHttpProxy.Start();
+                    if (httpStarted)
+                    {
+                        SystemProxyManager.EnableSystemProxy($"127.0.0.1:{_inProcessHttpProxy.BoundPort}");
+                        LogToFeed($"[INFO] System HTTP/HTTPS Proxy active on 127.0.0.1:{_inProcessHttpProxy.BoundPort} (AdGuard Engine) ✓");
+                    }
+                }
 
                 // 5. Point adapter DNS to 127.0.0.1 — try AdapterDnsConfigurator first, then direct netsh
                 bool dnsSet = false;
@@ -1267,6 +1326,15 @@ namespace ShieldBlock.UI
         {
             try
             {
+                // Disable system proxy immediately
+                SystemProxyManager.DisableSystemProxy();
+
+                if (_inProcessHttpProxy != null)
+                {
+                    _inProcessHttpProxy.Dispose();
+                    _inProcessHttpProxy = null;
+                }
+
                 if (_inProcessDnsProxy != null)
                 {
                     _inProcessDnsProxy.Dispose();
@@ -1286,7 +1354,7 @@ namespace ShieldBlock.UI
 
                 ConfigureBrowserDoh(false);
                 FlushWindowsDns();
-                LogToFeed("[SYSTEM] Protection PAUSED. Restored adapter DNS.");
+                LogToFeed("[SYSTEM] Protection PAUSED. Restored direct network access.");
             }
             catch { }
         }

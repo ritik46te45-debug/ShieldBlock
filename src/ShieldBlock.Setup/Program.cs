@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using ShieldBlock.Core.Common;
 using ShieldBlock.Core.Config;
 using ShieldBlock.Core.Https;
+using ShieldBlock.Core.Network;
 using ShieldBlock.Core.Rules;
 using ShieldBlock.Core.Safety;
 using ShieldBlock.Core.Wfp;
@@ -56,9 +57,10 @@ namespace ShieldBlock.Setup
             }
             catch { }
 
-            // 3. Revert Adapter DNS
+            // 3. Revert Adapter DNS and System Proxy
             try
             {
+                SystemProxyManager.DisableSystemProxy();
                 var snapshotMgr = new SnapshotManager();
                 var rollback = new RollbackEngine(snapshotMgr);
                 rollback.RollbackAllAsync().GetAwaiter().GetResult();

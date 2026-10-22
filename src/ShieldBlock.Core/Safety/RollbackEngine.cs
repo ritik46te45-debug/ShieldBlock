@@ -66,7 +66,7 @@ namespace ShieldBlock.Core.Safety
                 }
 
                 // 2. Clear any lingering proxy if ShieldBlock set one
-                // (ShieldBlock does not set global proxy unless explicitly configured)
+                ShieldBlock.Core.Network.SystemProxyManager.DisableSystemProxy();
 
                 // 3. Run connectivity verification
                 var connectivity = await _tester.RunConnectivityCheckAsync(timeoutMs: 3000);
